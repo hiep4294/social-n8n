@@ -1,0 +1,949 @@
+{
+  "name": "Multi-Platform Social Media Posting",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "social-post",
+        "responseMode": "onReceived",
+        "options": {}
+      },
+      "id": "webhook-trigger",
+      "name": "Webhook Trigger",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [240, 300]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Lấy dữ liệu từ webhook\nconst inputData = $input.all();\nconst postData = inputData[0].json;\n\n// Chuẩn bị nội dung cho từng platform\nconst platforms = {\n  facebook: {\n    message: postData.content,\n    image: postData.image_url,\n    link: postData.link\n  },\n  twitter: {\n    status: postData.content.substring(0, 280), // Giới hạn 280 ký tự\n    media: postData.image_url\n  },\n  instagram: {\n    caption: postData.content + '\\n\\n' + (postData.hashtags || ''),\n    image_url: postData.image_url\n  },\n  linkedin: {\n    comment: postData.content,\n    content: {\n      title: postData.title || 'New Post',\n      description: postData.content,\n      submitted_url: postData.link,\n      submitted_image_url: postData.image_url\n    }\n  },\n  youtube: {\n    snippet: {\n      title: postData.title || 'New Video',\n      description: postData.content,\n      tags: postData.hashtags ? postData.hashtags.split(' ') : []\n    }\n  },\n  tiktok: {\n    text: postData.content,\n    video_url: postData.video_url || postData.image_url\n  },\n  pinterest: {\n    note: postData.content,\n    link: postData.link,\n    image_url: postData.image_url,\n    board: postData.board || 'general'\n  },\n  telegram: {\n    text: postData.content,\n    photo: postData.image_url,\n    parse_mode: 'HTML'\n  },\n  discord: {\n    content: postData.content,\n    embeds: postData.image_url ? [{\n      image: { url: postData.image_url }\n    }] : []\n  },\n  reddit: {\n    title: postData.title || 'New Post',\n    text: postData.content,\n    url: postData.link,\n    subreddit: postData.subreddit || 'general'\n  },\n  tumblr: {\n    type: 'text',\n    title: postData.title,\n    body: postData.content,\n    tags: postData.hashtags\n  },\n  medium: {\n    title: postData.title || 'New Article',\n    content: postData.content,\n    contentFormat: 'html',\n    publishStatus: 'draft'\n  },\n  vk: {\n    message: postData.content,\n    attachments: postData.image_url\n  },\n  weibo: {\n    status: postData.content,\n    pic: postData.image_url\n  },\n  line: {\n    type: 'text',\n    text: postData.content\n  },\n  whatsapp: {\n    body: postData.content,\n    media_url: postData.image_url\n  },\n  snapchat: {\n    caption: postData.content,\n    media_url: postData.image_url\n  },\n  twitch: {\n    message: postData.content,\n    game: postData.game || 'Just Chatting'\n  },\n  clubhouse: {\n    topic: postData.title || 'General Discussion',\n    description: postData.content\n  },\n  mastodon: {\n    status: postData.content,\n    media_ids: postData.image_url ? [postData.image_url] : []\n  }\n};\n\n// Trả về dữ liệu cho tất cả platforms\nreturn Object.entries(platforms).map(([platform, data]) => ({\n  json: {\n    platform,\n    ...data,\n    original_data: postData\n  }\n}));"
+      },
+      "id": "data-processor",
+      "name": "Data Processor",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [460, 300]
+    },
+    {
+      "parameters": {
+        "resource": "page",
+        "operation": "post",
+        "pageId": "={{ $json.original_data.facebook_page_id }}",
+        "message": "={{ $json.message }}",
+        "additionalFields": {
+          "link": "={{ $json.link }}",
+          "picture": "={{ $json.image }}"
+        }
+      },
+      "id": "facebook-post",
+      "name": "Facebook",
+      "type": "n8n-nodes-base.facebookGraphApi",
+      "typeVersion": 1,
+      "position": [680, 100],
+      "executeOnce": false,
+      "filter": {
+        "conditions": {
+          "string": [
+            {
+              "value1": "={{ $json.platform }}",
+              "operation": "equal",
+              "value2": "facebook"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "parameters": {
+        "text": "={{ $json.status }}",
+        "additionalFields": {
+          "medias": "={{ $json.media }}"
+        }
+      },
+      "id": "twitter-post",
+      "name": "Twitter/X",
+      "type": "n8n-nodes-base.twitter",
+      "typeVersion": 1,
+      "position": [680, 160],
+      "filter": {
+        "conditions": {
+          "string": [
+            {
+              "value1": "={{ $json.platform }}",
+              "operation": "equal",
+              "value2": "twitter"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "parameters": {
+        "resource": "post",
+        "operation": "create",
+        "text": "={{ $json.comment }}",
+        "additionalFields": {
+          "content": "={{ $json.content }}"
+        }
+      },
+      "id": "linkedin-post",
+      "name": "LinkedIn",
+      "type": "n8n-nodes-base.linkedIn",
+      "typeVersion": 1,
+      "position": [680, 220],
+      "filter": {
+        "conditions": {
+          "string": [
+            {
+              "value1": "={{ $json.platform }}",
+              "operation": "equal",
+              "value2": "linkedin"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $json.original_data.telegram_chat_id }}",
+        "text": "={{ $json.text }}",
+        "additionalFields": {
+          "parse_mode": "={{ $json.parse_mode }}",
+          "photo": "={{ $json.photo }}"
+        }
+      },
+      "id": "telegram-post",
+      "name": "Telegram",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1,
+      "position": [680, 280],
+      "filter": {
+        "conditions": {
+          "string": [
+            {
+              "value1": "={{ $json.platform }}",
+              "operation": "equal",
+              "value2": "telegram"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "parameters": {
+        "webhookId": "={{ $json.original_data.discord_webhook_id }}",
+        "content": "={{ $json.content }}",
+        "additionalFields": {
+          "embeds": "={{ $json.embeds }}"
+        }
+      },
+      "id": "discord-post",
+      "name": "Discord",
+      "type": "n8n-nodes-base.discord",
+      "typeVersion": 1,
+      "position": [680, 340],
+      "filter": {
+        "conditions": {
+          "string": [
+            {
+              "value1": "={{ $json.platform }}",
+              "operation": "equal",
+              "value2": "discord"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "parameters": {
+        "authentication": "oAuth2",
+        "requestMethod": "POST",
+        "url": "https://api.pinterest.com/v5/pins",
+        "jsonParameters": true,
+        "bodyParametersJson": "={\n  \"link\": \"{{ $json.link }}\",\n  \"title\": \"{{ $json.original_data.title }}\",\n  \"description\": \"{{ $json.note }}\",\n  \"board_id\": \"{{ $json.original_data.pinterest_board_id }}\",\n  \"media_source\": {\n    \"source_type\": \"image_url\",\n    \"url\": \"{{ $json.image_url }}\"\n  }\n}",
+        "options": {}
+      },
+      "id": "pinterest-post",
+      "name": "Pinterest",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [680, 400],
+      "filter": {
+        "conditions": {
+          "string": [
+            {
+              "value1": "={{ $json.platform }}",
+              "operation": "equal",
+              "value2": "pinterest"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "parameters": {
+        "authentication": "oAuth2",
+        "requestMethod": "POST",
+        "url": "https://oauth.reddit.com/api/submit",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "User-Agent",
+              "value": "n8n-bot/1.0"
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "sr",
+              "value": "={{ $json.subreddit }}"
+            },
+            {
+              "name": "kind",
+              "value": "self"
+            },
+            {
+              "name": "title",
+              "value": "={{ $json.title }}"
+            },
+            {
+              "name": "text",
+              "value": "={{ $json.text }}"
+            }
+          ]
+        }
+      },
+      "id": "reddit-post",
+      "name": "Reddit",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [680, 460],
+      "filter": {
+        "conditions": {
+          "string": [
+            {
+              "value1": "={{ $json.platform }}",
+              "operation": "equal",
+              "value2": "reddit"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "parameters": {
+        "authentication": "oAuth2",
+        "requestMethod": "POST",
+        "url": "https://api.tumblr.com/v2/blog/{{ $json.original_data.tumblr_blog }}/post",
+        "jsonParameters": true,
+        "bodyParametersJson": "={\n  \"type\": \"{{ $json.type }}\",\n  \"title\": \"{{ $json.title }}\",\n  \"body\": \"{{ $json.body }}\",\n  \"tags\": \"{{ $json.tags }}\"\n}"
+      },
+      "id": "tumblr-post",
+      "name": "Tumblr", 
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [680, 520],
+      "filter": {
+        "conditions": {
+          "string": [
+            {
+              "value1": "={{ $json.platform }}",
+              "operation": "equal",
+              "value2": "tumblr"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "parameters": {
+        "authentication": "oAuth2",
+        "requestMethod": "POST",
+        "url": "https://api.medium.com/v1/users/{{ $json.original_data.medium_user_id }}/posts",
+        "jsonParameters": true,
+        "bodyParametersJson": "={\n  \"title\": \"{{ $json.title }}\",\n  \"content\": \"{{ $json.content }}\",\n  \"contentFormat\": \"{{ $json.contentFormat }}\",\n  \"publishStatus\": \"{{ $json.publishStatus }}\"\n}"
+      },
+      "id": "medium-post",
+      "name": "Medium",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [900, 100],
+      "filter": {
+        "conditions": {
+          "string": [
+            {
+              "value1": "={{ $json.platform }}",
+              "operation": "equal",
+              "value2": "medium"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "parameters": {
+        "authentication": "oAuth2",
+        "requestMethod": "POST",
+        "url": "https://api.vk.com/method/wall.post",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "message",
+              "value": "={{ $json.message }}"
+            },
+            {
+              "name": "attachments", 
+              "value": "={{ $json.attachments }}"
+            },
+            {
+              "name": "v",
+              "value": "5.131"
+            }
+          ]
+        }
+      },
+      "id": "vk-post",
+      "name": "VK",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [900, 160],
+      "filter": {
+        "conditions": {
+          "string": [
+            {
+              "value1": "={{ $json.platform }}",
+              "operation": "equal",
+              "value2": "vk"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "parameters": {
+        "authentication": "oAuth2",
+        "requestMethod": "POST",
+        "url": "https://api.weibo.com/2/statuses/update.json",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "status",
+              "value": "={{ $json.status }}"
+            },
+            {
+              "name": "pic",
+              "value": "={{ $json.pic }}"
+            }
+          ]
+        }
+      },
+      "id": "weibo-post",
+      "name": "Weibo",
+      "type": "n8n-nodes-base.httpRequest", 
+      "typeVersion": 4.1,
+      "position": [900, 220],
+      "filter": {
+        "conditions": {
+          "string": [
+            {
+              "value1": "={{ $json.platform }}",
+              "operation": "equal",
+              "value2": "weibo"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "parameters": {
+        "requestMethod": "POST",
+        "url": "https://api.line.me/v2/bot/message/broadcast",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "Bearer {{ $json.original_data.line_access_token }}"
+            },
+            {
+              "name": "Content-Type", 
+              "value": "application/json"
+            }
+          ]
+        },
+        "jsonParameters": true,
+        "bodyParametersJson": "={\n  \"messages\": [\n    {\n      \"type\": \"{{ $json.type }}\",\n      \"text\": \"{{ $json.text }}\"\n    }\n  ]\n}"
+      },
+      "id": "line-post",
+      "name": "LINE",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [900, 280],
+      "filter": {
+        "conditions": {
+          "string": [
+            {
+              "value1": "={{ $json.platform }}",
+              "operation": "equal",
+              "value2": "line"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "parameters": {
+        "requestMethod": "POST",
+        "url": "https://graph.facebook.com/v18.0/{{ $json.original_data.whatsapp_phone_id }}/messages",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "Bearer {{ $json.original_data.whatsapp_access_token }}"
+            }
+          ]
+        },
+        "jsonParameters": true,
+        "bodyParametersJson": "={\n  \"messaging_product\": \"whatsapp\",\n  \"to\": \"{{ $json.original_data.whatsapp_to }}\",\n  \"type\": \"text\",\n  \"text\": {\n    \"body\": \"{{ $json.body }}\"\n  }\n}"
+      },
+      "id": "whatsapp-post",
+      "name": "WhatsApp Business",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [900, 340],
+      "filter": {
+        "conditions": {
+          "string": [
+            {
+              "value1": "={{ $json.platform }}",
+              "operation": "equal",
+              "value2": "whatsapp"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "parameters": {
+        "requestMethod": "POST",
+        "url": "https://api.snapchat.com/v1/me/media",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "Bearer {{ $json.original_data.snapchat_access_token }}"
+            }
+          ]
+        },
+        "jsonParameters": true,
+        "bodyParametersJson": "={\n  \"caption\": \"{{ $json.caption }}\",\n  \"media_url\": \"{{ $json.media_url }}\"\n}"
+      },
+      "id": "snapchat-post",
+      "name": "Snapchat",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [900, 400],
+      "filter": {
+        "conditions": {
+          "string": [
+            {
+              "value1": "={{ $json.platform }}",
+              "operation": "equal",
+              "value2": "snapchat"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "parameters": {
+        "requestMethod": "POST",
+        "url": "https://api.twitch.tv/helix/chat/messages",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "Bearer {{ $json.original_data.twitch_access_token }}"
+            },
+            {
+              "name": "Client-Id",
+              "value": "{{ $json.original_data.twitch_client_id }}"
+            }
+          ]
+        },
+        "jsonParameters": true,
+        "bodyParametersJson": "={\n  \"broadcaster_id\": \"{{ $json.original_data.twitch_broadcaster_id }}\",\n  \"sender_id\": \"{{ $json.original_data.twitch_sender_id }}\",\n  \"message\": \"{{ $json.message }}\"\n}"
+      },
+      "id": "twitch-post",
+      "name": "Twitch",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [900, 460],
+      "filter": {
+        "conditions": {
+          "string": [
+            {
+              "value1": "={{ $json.platform }}",
+              "operation": "equal",
+              "value2": "twitch"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "parameters": {
+        "requestMethod": "POST",
+        "url": "https://{{ $json.original_data.mastodon_instance }}/api/v1/statuses",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "Bearer {{ $json.original_data.mastodon_access_token }}"
+            }
+          ]
+        },
+        "jsonParameters": true,
+        "bodyParametersJson": "={\n  \"status\": \"{{ $json.status }}\",\n  \"media_ids\": {{ $json.media_ids }}\n}"
+      },
+      "id": "mastodon-post",
+      "name": "Mastodon",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [900, 520],
+      "filter": {
+        "conditions": {
+          "string": [
+            {
+              "value1": "={{ $json.platform }}",
+              "operation": "equal",
+              "value2": "mastodon"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "parameters": {
+        "requestMethod": "POST",
+        "url": "https://api.instagram.com/v1/media",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "Bearer {{ $json.original_data.instagram_access_token }}"
+            }
+          ]
+        },
+        "jsonParameters": true,
+        "bodyParametersJson": "={\n  \"image_url\": \"{{ $json.image_url }}\",\n  \"caption\": \"{{ $json.caption }}\"\n}"
+      },
+      "id": "instagram-post",
+      "name": "Instagram",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [1120, 100],
+      "filter": {
+        "conditions": {
+          "string": [
+            {
+              "value1": "={{ $json.platform }}",
+              "operation": "equal",
+              "value2": "instagram"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "parameters": {
+        "requestMethod": "POST",
+        "url": "https://open-api.tiktok.com/share/video/upload/",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "Bearer {{ $json.original_data.tiktok_access_token }}"
+            }
+          ]
+        },
+        "jsonParameters": true,
+        "bodyParametersJson": "={\n  \"text\": \"{{ $json.text }}\",\n  \"video_url\": \"{{ $json.video_url }}\"\n}"
+      },
+      "id": "tiktok-post",
+      "name": "TikTok",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [1120, 160],
+      "filter": {
+        "conditions": {
+          "string": [
+            {
+              "value1": "={{ $json.platform }}",
+              "operation": "equal",
+              "value2": "tiktok"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Thu thập kết quả từ tất cả các platform\nconst results = $input.all();\nconst summary = {\n  total_platforms: results.length,\n  successful_posts: 0,\n  failed_posts: 0,\n  results: []\n};\n\nresults.forEach((item, index) => {\n  const platform = item.json.platform || `Platform ${index + 1}`;\n  \n  if (item.json.error) {\n    summary.failed_posts++;\n    summary.results.push({\n      platform: platform,\n      status: 'failed',\n      error: item.json.error\n    });\n  } else {\n    summary.successful_posts++;\n    summary.results.push({\n      platform: platform,\n      status: 'success',\n      post_id: item.json.id || item.json.post_id || 'N/A'\n    });\n  }\n});\n\nreturn [{ json: summary }];"
+      },
+      "id": "results-aggregator",
+      "name": "Results Aggregator",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1340, 300]
+    },
+    {
+      "parameters": {
+        "requestMethod": "POST",
+        "url": "={{ $json.original_data.webhook_callback_url }}",
+        "jsonParameters": true,
+        "bodyParametersJson": "={\n  \"status\": \"completed\",\n  \"summary\": {\n    \"total_platforms\": {{ $json.total_platforms }},\n    \"successful_posts\": {{ $json.successful_posts }},\n    \"failed_posts\": {{ $json.failed_posts }},\n    \"timestamp\": \"{{ new Date().toISOString() }}\"\n  },\n  \"detailed_results\": {{ JSON.stringify($json.results) }}\n}",
+        "options": {}
+      },
+      "id": "callback-webhook",
+      "name": "Callback Webhook",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [1560, 300]
+    }
+  ],
+  "connections": {
+    "Webhook Trigger": {
+      "main": [
+        [
+          {
+            "node": "Data Processor",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Data Processor": {
+      "main": [
+        [
+          {
+            "node": "Facebook",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Twitter/X",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "LinkedIn",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Telegram",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Discord",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Pinterest",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Reddit",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Tumblr",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Medium",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "VK",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Weibo",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "LINE",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "WhatsApp Business",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Snapchat",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Twitch",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Mastodon",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Instagram",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "TikTok",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Facebook": {
+      "main": [
+        [
+          {
+            "node": "Results Aggregator",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Twitter/X": {
+      "main": [
+        [
+          {
+            "node": "Results Aggregator",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "LinkedIn": {
+      "main": [
+        [
+          {
+            "node": "Results Aggregator",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Telegram": {
+      "main": [
+        [
+          {
+            "node": "Results Aggregator",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Discord": {
+      "main": [
+        [
+          {
+            "node": "Results Aggregator",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Pinterest": {
+      "main": [
+        [
+          {
+            "node": "Results Aggregator",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Reddit": {
+      "main": [
+        [
+          {
+            "node": "Results Aggregator",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Tumblr": {
+      "main": [
+        [
+          {
+            "node": "Results Aggregator",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Medium": {
+      "main": [
+        [
+          {
+            "node": "Results Aggregator",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "VK": {
+      "main": [
+        [
+          {
+            "node": "Results Aggregator",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Weibo": {
+      "main": [
+        [
+          {
+            "node": "Results Aggregator",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "LINE": {
+      "main": [
+        [
+          {
+            "node": "Results Aggregator",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "WhatsApp Business": {
+      "main": [
+        [
+          {
+            "node": "Results Aggregator",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Snapchat": {
+      "main": [
+        [
+          {
+            "node": "Results Aggregator",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Twitch": {
+      "main": [
+        [
+          {
+            "node": "Results Aggregator",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Mastodon": {
+      "main": [
+        [
+          {
+            "node": "Results Aggregator",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Instagram": {
+      "main": [
+        [
+          {
+            "node": "Results Aggregator",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "TikTok": {
+      "main": [
+        [
+          {
+            "node": "Results Aggregator",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Results Aggregator": {
+      "main": [
+        [
+          {
+            "node": "Callback Webhook",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "saveManualExecutions": true,
+    "callerPolicy": "workflowsFromSameOwner"
+  }
+}
+      "
