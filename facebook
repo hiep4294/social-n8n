@@ -1,0 +1,106 @@
+{
+  "nodes": [
+    {
+      "parameters": {
+        "authentication": "oAuth2",
+        "sheetId": "1Wm_n7BNOvJ-4mySXl1Xymjo_pUJElSNMYQQb39Sf_oQ",
+        "range": "Sheet1!A:C",
+        "valueRenderMode": "FORMATTED_VALUE",
+        "dataStartRow": 2
+      },
+      "id": "GoogleSheets_Read",
+      "name": "Read New Rows",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 1,
+      "position": [100, 300]
+    },
+    {
+      "parameters": {
+        "authentication": "oAuth2",
+        "requestMethod": "POST",
+        "url": "https://graph.facebook.com/v18.0/YOUR_PAGE_ID/photos",
+        "options": {},
+        "bodyParametersUi": {
+          "parameter": [
+            {
+              "name": "url",
+              "value": "={{ $json[\"ImageURL\"] }}"
+            },
+            {
+              "name": "caption",
+              "value": "={{ $json[\"Content\"] }}"
+            },
+            {
+              "name": "access_token",
+              "value": "YOUR_PAGE_ACCESS_TOKEN"
+            }
+          ]
+        }
+      },
+      "id": "Facebook_Post",
+      "name": "Post to Facebook",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 1,
+      "position": [300, 300]
+    },
+    {
+      "parameters": {
+        "functionCode": "const postId = $json['id'];\nconst pageId = 'YOUR_PAGE_ID';\nconst postLink = `https://www.facebook.com/${pageId}/posts/${postId.split('_')[1]}`;\nreturn [{ json: { PostURL: postLink } }];"
+      },
+      "id": "Generate_Link",
+      "name": "Generate Post Link",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [500, 300]
+    },
+    {
+      "parameters": {
+        "authentication": "oAuth2",
+        "sheetId": "1Wm_n7BNOvJ-4mySXl1Xymjo_pUJElSNMYQQb39Sf_oQ",
+        "range": "Sheet1!C2:C",
+        "valueInputMode": "USER_ENTERED",
+        "dataStartRow": 2
+      },
+      "id": "GoogleSheets_Update",
+      "name": "Update PostURL",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 1,
+      "position": [700, 300]
+    }
+  ],
+  "connections": {
+    "GoogleSheets_Read": {
+      "main": [
+        [
+          {
+            "node": "Facebook_Post",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Facebook_Post": {
+      "main": [
+        [
+          {
+            "node": "Generate_Link",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Generate_Link": {
+      "main": [
+        [
+          {
+            "node": "GoogleSheets_Update",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  }
+}
