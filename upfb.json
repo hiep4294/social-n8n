@@ -1,0 +1,347 @@
+{
+  "name": "Facebook Auto Post from Google Sheets",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "minutes",
+              "minutesInterval": 5
+            }
+          ]
+        }
+      },
+      "id": "1a2b3c4d-5e6f-7g8h-9i0j-k1l2m3n4o5p6",
+      "name": "Schedule Trigger",
+      "type": "n8n-nodes-base.cron",
+      "typeVersion": 1,
+      "position": [
+        240,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "authentication": "serviceAccount",
+        "resource": "sheet",
+        "operation": "read",
+        "documentId": "1Wm_n7BNOvJ-4mySXl1Xymjo_pUJElSNMYQQb39Sf_oQ",
+        "sheetName": "Sheet1",
+        "range": "A:F",
+        "options": {
+          "headerRow": true
+        }
+      },
+      "id": "2b3c4d5e-6f7g-8h9i-0j1k-l2m3n4o5p6q7",
+      "name": "Read Google Sheets",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4,
+      "position": [
+        460,
+        300
+      ],
+      "credentials": {
+        "googleSheetsApi": {
+          "id": "google-sheets-service-account",
+          "name": "Google Sheets Service Account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "functionCode": "// Lọc các bài cần đăng\nconst now = new Date();\nconst postsToPublish = [];\n\nfor (const item of $input.all()) {\n  const data = item.json;\n  \n  // Bỏ qua header row\n  if (data.post_time === 'post_time') continue;\n  \n  const postTime = new Date(data.post_time);\n  const status = data.status || '';\n  const rowIndex = item.index + 1; // +1 vì Google Sheets bắt đầu từ 1\n  \n  // Kiểm tra nếu đã đến giờ đăng và chưa đăng\n  if (postTime <= now && status.toLowerCase() !== 'posted') {\n    postsToPublish.push({\n      json: {\n        ...data,\n        rowIndex: rowIndex\n      }\n    });\n  }\n}\n\nreturn postsToPublish;"
+      },
+      "id": "3c4d5e6f-7g8h-9i0j-1k2l-m3n4o5p6q7r8",
+      "name": "Filter Posts to Publish",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [
+        680,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "4d5e6f7g-8h9i-0j1k-2l3m-n4o5p6q7r8s9",
+              "leftValue": "={{ $json.length }}",
+              "rightValue": 0,
+              "operator": {
+                "type": "number",
+                "operation": "gt"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "4d5e6f7g-8h9i-0j1k-2l3m-n4o5p6q7r8s9",
+      "name": "Check Posts Exist",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        900,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "url": "=https://graph.facebook.com/v18.0/{{ $json.page_id }}/photos",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "Bearer EAANZB2nP1RWoBO4k1epWgiIpAYPxcWig0ZBwO3O7ZCYiwFfEeuWtVUYqcN65SH2ZC53AuZBMDBOufgx0fOguHwMhB5ir0cZAz9ypb89xGhUKORZBhAJsKx4lj1DtrF7TN8K9BoNhpd1M9x9hADlh1z4bLiSzNm2ZCNmHqXp0aobCMi72Dp1ae2aNnWJjbaPrH2kfAmQficoO68h4JAZDZD"
+            }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "form-urlencoded",
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "url",
+              "value": "={{ $json.image_url }}"
+            },
+            {
+              "name": "published",
+              "value": "false"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "5e6f7g8h-9i0j-1k2l-3m4n-o5p6q7r8s9t0",
+      "name": "Upload Image to Facebook",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [
+        1120,
+        200
+      ]
+    },
+    {
+      "parameters": {
+        "url": "=https://graph.facebook.com/v18.0/{{ $json.page_id }}/feed",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "Bearer EAANZB2nP1RWoBO4k1epWgiIpAYPxcWig0ZBwO3O7ZCYiwFfEeuWtVUYqcN65SH2ZC53AuZBMDBOufgx0fOguHwMhB5ir0cZAz9ypb89xGhUKORZBhAJsKx4lj1DtrF7TN8K9BoNhpd1M9x9hADlh1z4bLiSzNm2ZCNmHqXp0aobCMi72Dp1ae2aNnWJjbaPrH2kfAmQficoO68h4JAZDZD"
+            }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "form-urlencoded",
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "message",
+              "value": "={{ $('Filter Posts to Publish').item.json.content }}"
+            },
+            {
+              "name": "object_attachment",
+              "value": "={{ $json.id }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "6f7g8h9i-0j1k-2l3m-4n5o-p6q7r8s9t0u1",
+      "name": "Create Facebook Post",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [
+        1340,
+        200
+      ]
+    },
+    {
+      "parameters": {
+        "authentication": "serviceAccount",
+        "resource": "sheet",
+        "operation": "update",
+        "documentId": "1Wm_n7BNOvJ-4mySXl1Xymjo_pUJElSNMYQQb39Sf_oQ",
+        "sheetName": "Sheet1",
+        "range": "=D{{ $('Filter Posts to Publish').item.json.rowIndex }}",
+        "options": {
+          "valueInputMode": "USER_ENTERED"
+        },
+        "dataMode": "define",
+        "valueToWrite": "posted"
+      },
+      "id": "7g8h9i0j-1k2l-3m4n-5o6p-q7r8s9t0u1v2",
+      "name": "Update Status to Posted",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4,
+      "position": [
+        1560,
+        200
+      ],
+      "credentials": {
+        "googleSheetsApi": {
+          "id": "google-sheets-service-account",
+          "name": "Google Sheets Service Account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "functionCode": "// Log thành công\nconst postData = $('Filter Posts to Publish').item.json;\nconst fbResponse = $('Create Facebook Post').item.json;\n\nconsole.log(`✅ Đã đăng bài thành công:`);\nconsole.log(`- Nội dung: ${postData.content}`);\nconsole.log(`- Thời gian: ${postData.post_time}`);\nconsole.log(`- Facebook Post ID: ${fbResponse.id}`);\n\nreturn [{\n  json: {\n    success: true,\n    message: 'Post published successfully',\n    post_id: fbResponse.id,\n    content: postData.content,\n    scheduled_time: postData.post_time\n  }\n}];"
+      },
+      "id": "8h9i0j1k-2l3m-4n5o-6p7q-r8s9t0u1v2w3",
+      "name": "Log Success",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [
+        1780,
+        200
+      ]
+    },
+    {
+      "parameters": {
+        "functionCode": "// Log kết thúc workflow khi không có bài nào cần đăng\nconsole.log('ℹ️ Không có bài nào cần đăng tại thời điểm này');\nconsole.log(`⏰ Kiểm tra lại vào: ${new Date(Date.now() + 5*60*1000).toLocaleString('vi-VN')}`);\n\nreturn [{\n  json: {\n    success: false,\n    message: 'No posts to publish at this time',\n    next_check: new Date(Date.now() + 5*60*1000).toISOString()\n  }\n}];"
+      },
+      "id": "9i0j1k2l-3m4n-5o6p-7q8r-s9t0u1v2w3x4",
+      "name": "Log No Posts",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [
+        1120,
+        400
+      ]
+    },
+    {
+      "parameters": {
+        "functionCode": "// Xử lý lỗi và log chi tiết\nconst error = $input.first().json;\nconst postData = $('Filter Posts to Publish').item?.json;\n\nconsole.error('❌ Lỗi khi đăng bài:');\nconsole.error(`- Lỗi: ${error.message || 'Unknown error'}`);\nif (postData) {\n  console.error(`- Nội dung bài: ${postData.content}`);\n  console.error(`- Thời gian dự kiến: ${postData.post_time}`);\n  console.error(`- Page ID: ${postData.page_id}`);\n}\nconsole.error(`- Chi tiết lỗi:`, error);\n\nreturn [{\n  json: {\n    success: false,\n    error: error.message || 'Unknown error',\n    post_data: postData,\n    timestamp: new Date().toISOString()\n  }\n}];"
+      },
+      "id": "0j1k2l3m-4n5o-6p7q-8r9s-t0u1v2w3x4y5",
+      "name": "Error Handler",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [
+        1340,
+        400
+      ]
+    }
+  ],
+  "connections": {
+    "Schedule Trigger": {
+      "main": [
+        [
+          {
+            "node": "Read Google Sheets",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Read Google Sheets": {
+      "main": [
+        [
+          {
+            "node": "Filter Posts to Publish",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Filter Posts to Publish": {
+      "main": [
+        [
+          {
+            "node": "Check Posts Exist",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check Posts Exist": {
+      "main": [
+        [
+          {
+            "node": "Upload Image to Facebook",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Log No Posts",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Upload Image to Facebook": {
+      "main": [
+        [
+          {
+            "node": "Create Facebook Post",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Create Facebook Post": {
+      "main": [
+        [
+          {
+            "node": "Update Status to Posted",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Update Status to Posted": {
+      "main": [
+        [
+          {
+            "node": "Log Success",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "pinData": {},
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "staticData": null,
+  "tags": [
+    {
+      "id": "facebook-automation",
+      "name": "Facebook Automation"
+    },
+    {
+      "id": "social-media",
+      "name": "Social Media"
+    }
+  ],
+  "triggerCount": 1,
+  "updatedAt": "2025-05-30T00:00:00.000Z",
+  "versionId": "1"
+}
